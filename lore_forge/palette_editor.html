@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lore Forge — Palette Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --BG_DARK: #12121e;
+            --BG_MID: #1a1a2e;
+            --BG_PANEL: #16213e;
+            --BG_CARD: #1e1e35;
+            --BG_HOVER: #252545;
+            --ACCENT: #e94560;
+            --ACCENT2: #533483;
+            --SUCCESS: #4ecca3;
+            --TEXT: #eaeaea;
+            --TEXT_DIM: #7a7a99;
+            --TAG_BG: #2a2a50;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--BG_DARK);
+            color: var(--TEXT);
+            min-height: 100vh;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: 100vh;
+        }
+
+        .sidebar {
+            background: var(--BG_MID);
+            border-right: 1px solid var(--BG_HOVER);
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .sidebar h1 {
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, var(--ACCENT), var(--ACCENT2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.3rem;
+        }
+
+        .sidebar .subtitle {
+            color: var(--TEXT_DIM);
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .color-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            padding: 0.5rem 0.6rem;
+            border-radius: 10px;
+            background: var(--BG_CARD);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .color-row:hover {
+            border-color: var(--BG_HOVER);
+        }
+
+        .color-row.active {
+            border-color: var(--ACCENT);
+            box-shadow: 0 0 0 1px var(--ACCENT);
+        }
+
+        .color-row .swatch {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 2px solid var(--BG_HOVER);
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+
+        .color-row:hover .swatch {
+            transform: scale(1.1);
+        }
+
+        .color-row .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .color-row .name {
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .color-row .hex {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: var(--TEXT_DIM);
+        }
+
+        .color-row .copy-btn {
+            opacity: 0;
+            background: none;
+            border: none;
+            color: var(--TEXT_DIM);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0.2rem;
+            transition: opacity 0.15s;
+        }
+
+        .color-row:hover .copy-btn {
+            opacity: 1;
+        }
+
+        .color-row .copy-btn:hover {
+            color: var(--TEXT);
+        }
+
+        .editor-panel {
+            background: var(--BG_PANEL);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .editor-panel label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--TEXT_DIM);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.4rem;
+        }
+
+        .editor-panel input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 0.6rem;
+        }
+
+        .editor-panel input[type="text"] {
+            width: 100%;
+            padding: 0.5rem 0.7rem;
+            border: 1px solid var(--BG_HOVER);
+            border-radius: 8px;
+            background: var(--BG_DARK);
+            color: var(--TEXT);
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .editor-panel input[type="text"]:focus {
+            outline: none;
+            border-color: var(--ACCENT);
+        }
+
+        .main {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .main-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .main-header h2 {
+            font-size: 1.1rem;
+            color: var(--TEXT_DIM);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            background: var(--BG_CARD);
+            color: var(--TEXT);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+            border: 1px solid var(--BG_HOVER);
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            background: var(--BG_HOVER);
+            transform: translateY(-1px);
+        }
+
+        .btn.primary {
+            background: var(--ACCENT);
+            color: white;
+            border-color: var(--ACCENT);
+        }
+
+        .btn.primary:hover {
+            filter: brightness(1.1);
+        }
+
+        .btn.success {
+            background: var(--SUCCESS);
+            color: var(--BG_DARK);
+            border-color: var(--SUCCESS);
+            font-weight: 600;
+        }
+
+        .preview-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .preview-box {
+            background: var(--BG_PANEL);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--BG_HOVER);
+        }
+
+        .preview-box h3 {
+            font-size: 0.9rem;
+            color: var(--TEXT_DIM);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Mock Lore Forge UI */
+        .mock-app {
+            background: var(--BG_DARK);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--BG_HOVER);
+        }
+
+        .mock-header {
+            background: var(--BG_MID);
+            padding: 0.8rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            border-bottom: 1px solid var(--BG_HOVER);
+        }
+
+        .mock-header .logo {
+            width: 28px;
+            height: 28px;
+            background: var(--ACCENT);
+            border-radius: 6px;
+        }
+
+        .mock-header .title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .mock-body {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            min-height: 220px;
+        }
+
+        .mock-nav {
+            background: var(--BG_PANEL);
+            padding: 0.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            border-right: 1px solid var(--BG_HOVER);
+        }
+
+        .mock-nav-item {
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            color: var(--TEXT_DIM);
+        }
+
+        .mock-nav-item:hover {
+            background: var(--BG_HOVER);
+            color: var(--TEXT);
+        }
+
+        .mock-nav-item.active {
+            background: var(--ACCENT);
+            color: white;
+        }
+
+        .mock-content {
+            padding: 1rem;
+            background: var(--BG_CARD);
+        }
+
+        .mock-content .tabs {
+            display: flex;
+            gap: 0.3rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .mock-tab {
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            background: var(--TAG_BG);
+            color: var(--TEXT_DIM);
+        }
+
+        .mock-tab.active {
+            background: var(--SUCCESS);
+            color: var(--BG_DARK);
+            font-weight: 600;
+        }
+
+        .mock-tab.art {
+            background: var(--ACCENT);
+            color: white;
+        }
+
+        .mock-tab.ref {
+            background: var(--ACCENT2);
+            color: white;
+        }
+
+        .mock-card {
+            background: var(--BG_MID);
+            border-radius: 8px;
+            padding: 0.7rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--BG_HOVER);
+        }
+
+        .mock-card h4 {
+            font-size: 0.8rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .mock-card p {
+            font-size: 0.7rem;
+            color: var(--TEXT_DIM);
+        }
+
+        .mock-card .tag {
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            background: var(--TAG_BG);
+            color: var(--TEXT_DIM);
+            margin-top: 0.3rem;
+        }
+
+        /* Code preview */
+        .code-block {
+            background: var(--BG_DARK);
+            border-radius: 10px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+            overflow-x: auto;
+            border: 1px solid var(--BG_HOVER);
+        }
+
+        .code-block .comment { color: var(--TEXT_DIM); }
+        .code-block .keyword { color: var(--ACCENT); }
+        .code-block .string { color: var(--SUCCESS); }
+        .code-block .var { color: var(--TEXT); }
+
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: var(--SUCCESS);
+            color: var(--BG_DARK);
+            padding: 0.7rem 1.2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(78, 204, 163, 0.3);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 900px) {
+            .app { grid-template-columns: 1fr; }
+            .sidebar { max-height: 45vh; }
+            .preview-area { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="sidebar">
+            <div>
+                <h1>Lore Forge</h1>
+                <div class="subtitle">Palette Editor — constants.py</div>
+            </div>
+
+            <div class="color-list" id="colorList"></div>
+
+            <div class="editor-panel" id="editorPanel" style="display:none">
+                <label>Edit <span id="editName"></span></label>
+                <input type="color" id="colorPicker" oninput="updateFromPicker(this.value)">
+                <input type="text" id="hexInput" oninput="updateFromText(this.value)" placeholder="#000000">
+            </div>
+
+            <div style="margin-top:auto; display:flex; flex-direction:column; gap:0.5rem;">
+                <button class="btn" onclick="resetAll()">↺ Reset to Default</button>
+                <button class="btn success" onclick="downloadFile()">⬇ Download constants.py</button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="main-header">
+                <h2>Live Preview</h2>
+                <div class="btn-group">
+                    <button class="btn" onclick="copyAll()">📋 Copy All</button>
+                    <button class="btn primary" onclick="downloadFile()">⬇ Export File</button>
+                </div>
+            </div>
+
+            <div class="preview-area">
+                <div class="preview-box">
+                    <h3>App Preview</h3>
+                    <div class="mock-app">
+                        <div class="mock-header">
+                            <div class="logo"></div>
+                            <div class="title">Lore Forge</div>
+                        </div>
+                        <div class="mock-body">
+                            <div class="mock-nav">
+                                <div class="mock-nav-item active">Characters</div>
+                                <div class="mock-nav-item">Places</div>
+                                <div class="mock-nav-item">Stories</div>
+                            </div>
+                            <div class="mock-content">
+                                <div class="tabs">
+                                    <div class="mock-tab active">Essay</div>
+                                    <div class="mock-tab art">Artwork</div>
+                                    <div class="mock-tab ref">Ref</div>
+                                </div>
+                                <div class="mock-card">
+                                    <h4>Elara Moonweaver</h4>
+                                    <p>A high elf ranger from the Silverwood.</p>
+                                    <span class="tag">essay</span>
+                                </div>
+                                <div class="mock-card">
+                                    <h4>The Obsidian Spire</h4>
+                                    <p>An ancient tower in the Ashfall Wastes.</p>
+                                    <span class="tag">reference</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-box">
+                    <h3>Generated Code</h3>
+                    <div class="code-block" id="codePreview"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">Copied!</div>
+
+    <script>
+        const defaultPalette = {
+            BG_DARK:  "#12121e",
+            BG_MID:   "#1a1a2e",
+            BG_PANEL: "#16213e",
+            BG_CARD:  "#1e1e35",
+            BG_HOVER: "#252545",
+            ACCENT:   "#e94560",
+            ACCENT2:  "#533483",
+            SUCCESS:  "#4ecca3",
+            TEXT:     "#eaeaea",
+            TEXT_DIM: "#7a7a99",
+            TAG_BG:   "#2a2a50"
+        };
+
+        let palette = JSON.parse(JSON.stringify(defaultPalette));
+        let selectedName = null;
+
+        const fileTemplate = (p) => `"""Colours, fonts, paths and default values used across the app."""
+
+from pathlib import Path
+
+# ── Storage paths ──────────────────────────────────────────────────────────────
+DATA_DIR   = Path.home() / ".lore_forge"
+NODES_FILE = DATA_DIR / "nodes.json"
+IMAGES_DIR = DATA_DIR / "images"
+CONFIG_FILE = DATA_DIR / "config.json"
+
+# ── Theme ──────────────────────────────────────────────────────────────────────
+BG_DARK   = "${p.BG_DARK}"
+BG_MID    = "${p.BG_MID}"
+BG_PANEL  = "${p.BG_PANEL}"
+BG_CARD   = "${p.BG_CARD}"
+BG_HOVER  = "${p.BG_HOVER}"
+ACCENT    = "${p.ACCENT}"
+ACCENT2   = "${p.ACCENT2}"
+SUCCESS   = "${p.SUCCESS}"
+TEXT      = "${p.TEXT}"
+TEXT_DIM  = "${p.TEXT_DIM}"
+TAG_BG    = "${p.TAG_BG}"
+
+FONT_TITLE = ("Segoe UI", 16, "bold")
+FONT_HEAD  = ("Segoe UI", 11, "bold")
+FONT_BODY  = ("Segoe UI", 10)
+FONT_SMALL = ("Segoe UI", 9)
+
+DEFAULT_NODES = ["Characters", "Places", "Stories"]
+
+# Activity types
+ACTIVITY_ICONS = {"essay": "", "artwork": "", "reference": ""}
+ACTIVITY_LABELS = {"essay": "Essay", "artwork": "Artwork", "reference": "References"}
+ACTIVITY_COLORS = {"essay": SUCCESS, "artwork": ACCENT, "reference": ACCENT2}
+TAB_INDEX = {"essay": 0, "artwork": 1, "reference": 2}`;
+
+        function render() {
+            // Color list
+            const list = document.getElementById('colorList');
+            list.innerHTML = '';
+            for (const [name, hex] of Object.entries(palette)) {
+                const row = document.createElement('div');
+                row.className = 'color-row' + (selectedName === name ? ' active' : '');
+                row.onclick = () => selectColor(name);
+                row.innerHTML = `
+                    <div class="swatch" style="background:${hex}"></div>
+                    <div class="info">
+                        <div class="name">${name}</div>
+                        <div class="hex">${hex}</div>
+                    </div>
+                    <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('${hex}')" title="Copy hex">📋</button>
+                `;
+                list.appendChild(row);
+            }
+
+            // Editor
+            const panel = document.getElementById('editorPanel');
+            if (selectedName) {
+                panel.style.display = 'block';
+                document.getElementById('editName').textContent = selectedName;
+                document.getElementById('colorPicker').value = palette[selectedName];
+                document.getElementById('hexInput').value = palette[selectedName];
+            } else {
+                panel.style.display = 'none';
+            }
+
+            // CSS vars for preview
+            const root = document.documentElement;
+            for (const [k, v] of Object.entries(palette)) {
+                root.style.setProperty('--' + k, v);
+            }
+
+            // Code preview
+            const code = fileTemplate(palette);
+            const block = document.getElementById('codePreview');
+            block.innerHTML = syntaxHighlight(code);
+        }
+
+        function syntaxHighlight(code) {
+            return code
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/(".*?")/g, '<span class="string">$1</span>')
+                .replace(/(from|import)/g, '<span class="keyword">$1</span>')
+                .replace(/(=)/g, '<span class="keyword">$1</span>')
+                .replace(/(#.*)/g, '<span class="comment">$1</span>');
+        }
+
+        function selectColor(name) {
+            selectedName = (selectedName === name) ? null : name;
+            render();
+        }
+
+        function updateFromPicker(val) {
+            if (!selectedName) return;
+            palette[selectedName] = val.toLowerCase();
+            document.getElementById('hexInput').value = val.toLowerCase();
+            render();
+            // Re-select after render
+            selectedName = Object.keys(palette).find(k => k === selectedName);
+            const panel = document.getElementById('editorPanel');
+            panel.style.display = 'block';
+            document.getElementById('editName').textContent = selectedName;
+            document.getElementById('colorPicker').value = palette[selectedName];
+            document.getElementById('hexInput').value = palette[selectedName];
+        }
+
+        function updateFromText(val) {
+            if (!selectedName) return;
+            val = val.trim().toLowerCase();
+            if (/^#[0-9a-f]{6}$/.test(val)) {
+                palette[selectedName] = val;
+                document.getElementById('colorPicker').value = val;
+                render();
+                selectedName = Object.keys(palette).find(k => k === selectedName);
+                const panel = document.getElementById('editorPanel');
+                panel.style.display = 'block';
+                document.getElementById('editName').textContent = selectedName;
+                document.getElementById('colorPicker').value = palette[selectedName];
+                document.getElementById('hexInput').value = palette[selectedName];
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => showToast('Copied: ' + text));
+        }
+
+        function copyAll() {
+            const code = fileTemplate(palette);
+            navigator.clipboard.writeText(code).then(() => showToast('Full file copied to clipboard!'));
+        }
+
+        function downloadFile() {
+            const code = fileTemplate(palette);
+            const blob = new Blob([code], { type: 'text/x-python' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'constants.py';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('constants.py downloaded!');
+        }
+
+        function resetAll() {
+            palette = JSON.parse(JSON.stringify(defaultPalette));
+            selectedName = null;
+            render();
+            showToast('Reset to defaults');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        render();
+    </script>
+</body>
+</html>
