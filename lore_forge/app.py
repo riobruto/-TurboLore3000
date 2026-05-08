@@ -378,13 +378,13 @@ class LoreForge:
             self._show_node(nid)
 
         essay_tab = EssayTab(nb, self.db, nid, self._refresh_tree)
-        nb.add(essay_tab, text="   Essays  ")
+        nb.add(essay_tab, text=f"   Essays ({len(n['essays'])})  ")
 
         img_tab = ImageTab(nb, self.db, nid, self._refresh_tree)
-        nb.add(img_tab, text="   Artwork  ")
+        nb.add(img_tab, text=f"   Artwork ({len(n['images'])})  ")
 
         ref_tab = ReferenceTab(nb, self.db, nid, self._refresh_tree)
-        nb.add(ref_tab, text="   References  ")
+        nb.add(ref_tab, text=f"   References ({len(n['references'])})  ")
 
     # ── Node management ───────────────────────────────────────────────────────
 

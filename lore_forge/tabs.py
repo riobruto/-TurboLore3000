@@ -1,5 +1,8 @@
 """The three content tabs: Essays, Artwork, References."""
 
+import os
+import platform
+import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog, scrolledtext
 from pathlib import Path
@@ -10,6 +13,21 @@ from .constants import (
 )
 from .widgets import ScrollFrame, flat_btn, label
 from .dialogs import EssayEditor, ImageEditor
+
+
+def _open_image(path):
+    """Open an image file with the system's default viewer."""
+    if not path or not path.exists():
+        return
+    try:
+        if platform.system() == "Windows":
+            os.startfile(str(path))
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+    except Exception:
+        pass
 
 
 class EssayTab(tk.Frame):
@@ -163,8 +181,10 @@ class ImageTab(tk.Frame):
                 pil.thumbnail(self.THUMB)
                 photo = ImageTk.PhotoImage(pil)
                 self._photos.append(photo)
-                tk.Label(card, image=photo, bg=BG_MID,
-                         cursor="hand2").pack()
+                lbl = tk.Label(card, image=photo, bg=BG_MID,
+                         cursor="hand2")
+                lbl.pack()
+                lbl.bind("<Double-Button-1>", lambda e, p=img_path: _open_image(p))
             except Exception:
                 label(card, "[Preview error]", fg=TEXT_DIM, bg=BG_MID,
                       font=FONT_SMALL).pack(ipadx=80, ipady=50)
@@ -263,7 +283,9 @@ class ReferenceTab(tk.Frame):
                 pil.thumbnail(self.THUMB)
                 photo = ImageTk.PhotoImage(pil)
                 self._photos.append(photo)
-                tk.Label(left, image=photo, bg=BG_MID).pack()
+                lbl = tk.Label(left, image=photo, bg=BG_MID)
+                lbl.pack()
+                lbl.bind("<Double-Button-1>", lambda e, p=img_path: _open_image(p))
             except Exception:
                 label(left, "[Preview error]", fg=TEXT_DIM, bg=BG_MID,
                       font=FONT_SMALL).pack(ipadx=40, ipady=30)
