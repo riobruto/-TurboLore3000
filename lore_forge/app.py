@@ -535,4 +535,5 @@ class LoreForge:
     # ── Run ───────────────────────────────────────────────────────────────────
 
     def run(self):
+
         self.root.mainloop()
