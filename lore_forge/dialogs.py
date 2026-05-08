@@ -2,6 +2,8 @@
 
 import tkinter as tk
 from tkinter import scrolledtext, filedialog
+import os
+from pathlib import Path
 
 from .constants import (
     BG_DARK, BG_MID, BG_PANEL, TEXT, TEXT_DIM, SUCCESS, ACCENT, ACCENT2,
@@ -51,7 +53,7 @@ class EssayEditor(tk.Toplevel):
     # ── ui ───────────────────────────────────────────────────────────────────
     def _build(self):
         # ═════════════════════════════════════════════════════════════════════
-        #  TOP ACTION BAR  (Save / Cancel + live counter)
+        #  TOP ACTION BAR  (Save / Close + live counter)
         # ═════════════════════════════════════════════════════════════════════
         top = tk.Frame(self, bg=BG_DARK, padx=15, pady=10)
         top.pack(fill="x")
@@ -60,7 +62,7 @@ class EssayEditor(tk.Toplevel):
                                  font=FONT_SMALL)
         self._counter.pack(side="left")
 
-        flat_btn(top, "Cancel", self.destroy, bg=BG_MID).pack(side="right", padx=6)
+        flat_btn(top, "Close", self._on_close, bg=BG_MID).pack(side="right", padx=6)
         flat_btn(top, "  💾  Save  ", self._save,
                  bg=SUCCESS, fg=BG_DARK,
                  font=("Segoe UI", 10, "bold")).pack(side="right")
@@ -102,7 +104,23 @@ class EssayEditor(tk.Toplevel):
         self._text.bind("<ButtonRelease>", lambda e: self._update_counter())
         self._text.bind("<<Paste>>", lambda e: self.after(10, self._update_counter))
 
-    # ── save ─────────────────────────────────────────────────────────────────
+        # Intercept window-manager close button
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # ── close (autosave) ─────────────────────────────────────────────────────
+    def _on_close(self):
+        """Autosave on close if data is valid, otherwise just destroy."""
+        title   = self._title_var.get().strip()
+        content = self._text.get("1.0", "end-1c").strip()
+
+        if title:
+            total = len(title) + len(content)
+            if total <= self.max_chars:
+                self.on_save(title, content)
+
+        self.destroy()
+
+    # ── explicit save ────────────────────────────────────────────────────────
     def _save(self):
         from tkinter import messagebox
         title   = self._title_var.get().strip()
@@ -125,22 +143,116 @@ class EssayEditor(tk.Toplevel):
         self.destroy()
 
 
-class ActivitySuggestionDialog(tk.Toplevel):
-    """Shows the activity suggestion and lets the user act on it.
-    Autosaves draft text / image if the window is closed with valid data."""
+class ImageEditor(tk.Toplevel):
+    """Image upload editor with autosave on close."""
 
-    def __init__(self, master, node_name, activity_type, title, prompt, on_jump,
-                 node_id=None, db=None, on_autosave=None):
+    def __init__(self, master, node_id, on_save):
+        super().__init__(master)
+        self.node_id = node_id
+        self.on_save = on_save
+
+        self.title("Image Editor — +TurboLore3000")
+        self.geometry("520x340")
+        self.resizable(False, False)
+        self.configure(bg=BG_DARK)
+        self.grab_set()
+
+        self._build()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _build(self):
+        # Top action bar
+        top = tk.Frame(self, bg=BG_DARK, padx=15, pady=10)
+        top.pack(fill="x")
+
+        flat_btn(top, "Close", self._on_close, bg=BG_MID).pack(side="right", padx=6)
+        flat_btn(top, "  💾  Save  ", self._save,
+                 bg=SUCCESS, fg=BG_DARK,
+                 font=("Segoe UI", 10, "bold")).pack(side="right")
+
+        # File path
+        file_frame = tk.Frame(self, bg=BG_DARK, padx=15)
+        file_frame.pack(fill="x", pady=(8, 4))
+
+        tk.Label(file_frame, text="File:", bg=BG_DARK, fg=TEXT_DIM,
+                 font=FONT_SMALL).pack(side="left")
+
+        self._path_var = tk.StringVar()
+        tk.Entry(file_frame, textvariable=self._path_var, bg=BG_PANEL, fg=TEXT,
+                 insertbackground=TEXT, font=("Segoe UI", 11),
+                 relief="flat", bd=6).pack(side="left", fill="x", expand=True, padx=6)
+        flat_btn(file_frame, "Browse…", self._browse,
+                 bg=BG_MID, font=FONT_SMALL, padx=8).pack(side="left")
+
+        # Title
+        tk.Label(self, text="Title:", bg=BG_DARK, fg=TEXT_DIM,
+                 font=FONT_SMALL).pack(anchor="w", padx=15, pady=(12, 2))
+        self._title_var = tk.StringVar()
+        tk.Entry(self, textvariable=self._title_var, bg=BG_PANEL, fg=TEXT,
+                 insertbackground=TEXT, font=("Segoe UI", 12),
+                 relief="flat", bd=8).pack(fill="x", padx=15)
+
+        # Notes
+        tk.Label(self, text="Notes (optional):", bg=BG_DARK, fg=TEXT_DIM,
+                 font=FONT_SMALL).pack(anchor="w", padx=15, pady=(12, 2))
+        self._notes = scrolledtext.ScrolledText(
+            self, bg=BG_MID, fg=TEXT, insertbackground=TEXT,
+            font=("Segoe UI", 10), relief="flat", wrap="word",
+            height=4, padx=10, pady=8, selectbackground=ACCENT2)
+        self._notes.pack(fill="x", padx=15, pady=(0, 10))
+
+    def _browse(self):
+        path = filedialog.askopenfilename(
+            title="Select Image",
+            filetypes=[("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp *.tiff"),
+                       ("All files", "*.*")],
+            parent=self
+        )
+        if path:
+            self._path_var.set(path)
+            if not self._title_var.get().strip():
+                self._title_var.set(Path(path).stem)
+
+    def _on_close(self):
+        """Autosave on close if file and title are present."""
+        path  = self._path_var.get().strip()
+        title = self._title_var.get().strip()
+        notes = self._notes.get("1.0", "end-1c").strip()
+
+        if path and title and os.path.exists(path):
+            self.on_save(path, title, notes)
+
+        self.destroy()
+
+    def _save(self):
+        from tkinter import messagebox
+        path  = self._path_var.get().strip()
+        title = self._title_var.get().strip()
+
+        if not path:
+            messagebox.showwarning("No file", "Please select an image file.", parent=self)
+            return
+        if not os.path.exists(path):
+            messagebox.showwarning("File not found", "The selected file does not exist.", parent=self)
+            return
+        if not title:
+            messagebox.showwarning("No title", "Please enter a title.", parent=self)
+            return
+
+        notes = self._notes.get("1.0", "end-1c").strip()
+        self.on_save(path, title, notes)
+        self.destroy()
+
+
+class ActivitySuggestionDialog(tk.Toplevel):
+    """Shows the activity suggestion and lets the user act on it."""
+
+    def __init__(self, master, node_name, activity_type, title, prompt, on_jump):
         super().__init__(master)
         self.on_jump = on_jump
         self.activity_type = activity_type
-        self.node_id = node_id
-        self.db = db
-        self.on_autosave = on_autosave
-        self._activity_title = title
-
         self.title("Activity Suggestion — +TurboLore3000")
-        self.geometry("620x520")
+        self.geometry("620x380")
         self.resizable(False, False)
         self.configure(bg=BG_DARK)
         self.grab_set()
@@ -169,86 +281,22 @@ class ActivitySuggestionDialog(tk.Toplevel):
 
         # ── Prompt body ───────────────────────────────────────────────────────
         body = tk.Frame(self, bg=BG_MID, padx=18, pady=14)
-        body.pack(fill="both", expand=True, padx=24, pady=(0, 10))
+        body.pack(fill="both", expand=True, padx=24, pady=(0, 16))
 
         tk.Label(body, text=prompt, bg=BG_MID, fg="#c8c8e0",
                  font=("Segoe UI", 10), wraplength=540,
                  justify="left", anchor="nw").pack(fill="both", expand=True)
 
-        # ── Quick Draft ───────────────────────────────────────────────────────
-        tk.Label(self, text="Quick Draft (autosaved on close):", bg=BG_DARK, fg=TEXT_DIM,
-                 font=FONT_SMALL).pack(anchor="w", padx=24, pady=(8, 4))
-
-        self._draft = scrolledtext.ScrolledText(
-            self, bg=BG_MID, fg=TEXT, insertbackground=TEXT,
-            font=("Segoe UI", 10), relief="flat", wrap="word",
-            height=5, padx=10, pady=8, selectbackground=ACCENT2)
-        self._draft.pack(fill="x", padx=24, pady=(0, 8))
-
-        # ── Image attachment ──────────────────────────────────────────────────
-        img_frame = tk.Frame(self, bg=BG_DARK)
-        img_frame.pack(fill="x", padx=24, pady=(0, 8))
-
-        tk.Label(img_frame, text="Image:", bg=BG_DARK, fg=TEXT_DIM,
-                 font=FONT_SMALL).pack(side="left")
-
-        self._img_var = tk.StringVar()
-        tk.Entry(img_frame, textvariable=self._img_var, bg=BG_PANEL, fg=TEXT,
-                 insertbackground=TEXT, font=("Segoe UI", 10),
-                 relief="flat", bd=6).pack(side="left", fill="x", expand=True, padx=6)
-
-        flat_btn(img_frame, "Browse…", self._browse_image,
-                 bg=BG_MID, font=FONT_SMALL, padx=8).pack(side="left")
-
         # ── Buttons ───────────────────────────────────────────────────────────
         btns = tk.Frame(self, bg=BG_DARK, padx=24, pady=12)
         btns.pack(fill="x")
 
-        flat_btn(btns, "Dismiss", self._on_close, bg=BG_MID).pack(side="right", padx=6)
+        flat_btn(btns, "Dismiss", self.destroy, bg=BG_MID).pack(side="right", padx=6)
         flat_btn(btns, f"  {icon}  Start this activity  ",
                  self._start, bg=color,
                  fg=BG_DARK if color == SUCCESS else TEXT,
                  font=("Segoe UI", 10, "bold")).pack(side="right")
 
-        # Intercept the window-manager close button
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
-
-    # ── helpers ──────────────────────────────────────────────────────────────
-    def _browse_image(self):
-        path = filedialog.askopenfilename(
-            title="Select Image",
-            filetypes=[
-                ("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
-                ("All files", "*.*")
-            ],
-            parent=self
-        )
-        if path:
-            self._img_var.set(path)
-
-    def _has_content(self):
-        """Return True if the user entered draft text or selected an image."""
-        draft = self._draft.get("1.0", "end-1c").strip()
-        img = self._img_var.get().strip()
-        return bool(draft or img)
-
-    def _autosave(self):
-        """Save draft + image via the callback if data is present."""
-        if not self._has_content():
-            return False
-        draft = self._draft.get("1.0", "end-1c").strip()
-        img = self._img_var.get().strip()
-        if self.on_autosave:
-            self.on_autosave(self.node_id, self._activity_title, draft, img)
-        return True
-
-    def _on_close(self):
-        """Dismiss / WM_CLOSE handler: autosave if valid, then destroy."""
-        self._autosave()
-        self.destroy()
-
     def _start(self):
-        """Start activity: autosave draft, jump to tab, then close."""
-        self._autosave()
         self.on_jump(TAB_INDEX.get(self.activity_type, 0))
         self.destroy()

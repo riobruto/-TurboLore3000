@@ -12,8 +12,10 @@ from .constants import DATA_DIR, DEFAULT_NODES
 try:
     from PIL import Image, ImageTk
     PIL_AVAILABLE = True
-except ImportError:
+except Exception as exc:          # ← catch ANY import problem, not just ImportError
     PIL_AVAILABLE = False
+    # Print the real reason so you can see what's shadowing the import
+    print(f"[PIL import failed] {type(exc).__name__}: {exc}")
 
 
 class DataManager:

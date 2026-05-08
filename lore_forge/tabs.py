@@ -8,9 +8,8 @@ from .constants import (
     BG_CARD, BG_MID, BG_PANEL, BG_DARK, TEXT, TEXT_DIM, SUCCESS, ACCENT, ACCENT2,
     FONT_HEAD, FONT_BODY, FONT_SMALL
 )
-from .database import PIL_AVAILABLE
 from .widgets import ScrollFrame, flat_btn, label
-from .dialogs import EssayEditor
+from .dialogs import EssayEditor, ImageEditor
 
 
 class EssayTab(tk.Frame):
@@ -22,7 +21,6 @@ class EssayTab(tk.Frame):
         self._build()
 
     def _build(self):
-        # Toolbar
         bar = tk.Frame(self, bg=BG_CARD, padx=15, pady=10)
         bar.pack(fill="x")
         label(bar, "Activity 1 — Write an essay about this topic",
@@ -33,7 +31,6 @@ class EssayTab(tk.Frame):
 
         ttk.Separator(self, orient="horizontal").pack(fill="x", padx=15)
 
-        # Scroll area
         self._scroll = ScrollFrame(self, bg=BG_CARD)
         self._scroll.pack(fill="both", expand=True)
         self._render()
@@ -59,21 +56,18 @@ class EssayTab(tk.Frame):
         card = tk.Frame(parent, bg=BG_MID, padx=16, pady=12)
         card.pack(fill="x", padx=15, pady=5)
 
-        # Header row
         hdr = tk.Frame(card, bg=BG_MID)
         hdr.pack(fill="x")
         label(hdr, essay["title"], font=FONT_HEAD, bg=BG_MID).pack(side="left")
         label(hdr, essay["created"][:10], fg=TEXT_DIM, bg=BG_MID,
               font=FONT_SMALL).pack(side="right")
 
-        # Preview
         preview = essay["content"][:240].replace("\n", " ")
         if len(essay["content"]) > 240:
             preview += "…"
         label(card, preview, fg="#c8c8e0", bg=BG_MID, font=FONT_BODY,
               wraplength=720, justify="left", anchor="w").pack(fill="x", pady=6)
 
-        # Buttons
         btns = tk.Frame(card, bg=BG_MID)
         btns.pack(anchor="w")
         flat_btn(btns, "✏  Read / Edit",
@@ -158,13 +152,13 @@ class ImageTab(tk.Frame):
             self._image_card(grid, img, r, c)
 
     def _image_card(self, grid, img, row, col):
-        from PIL import Image, ImageTk
         card = tk.Frame(grid, bg=BG_MID, padx=8, pady=8)
         card.grid(row=row, column=col, padx=6, pady=6, sticky="nw")
 
         img_path = self.db.images_dir / img["filename"]
-        if PIL_AVAILABLE and img_path.exists():
+        if img_path.exists():
             try:
+                from PIL import Image, ImageTk
                 pil = Image.open(img_path)
                 pil.thumbnail(self.THUMB)
                 photo = ImageTk.PhotoImage(pil)
@@ -172,11 +166,11 @@ class ImageTab(tk.Frame):
                 tk.Label(card, image=photo, bg=BG_MID,
                          cursor="hand2").pack()
             except Exception:
-                label(card, "[Image error]", fg=TEXT_DIM, bg=BG_MID).pack(
-                    ipadx=80, ipady=50)
+                label(card, "[Preview error]", fg=TEXT_DIM, bg=BG_MID,
+                      font=FONT_SMALL).pack(ipadx=80, ipady=50)
         else:
-            label(card, "[No preview\ninstall Pillow]",
-                  fg=TEXT_DIM, bg=BG_MID).pack(ipadx=60, ipady=40)
+            label(card, "[No preview]", fg=TEXT_DIM, bg=BG_MID,
+                  font=FONT_SMALL).pack(ipadx=60, ipady=40)
 
         label(card, img["title"], font=("Segoe UI", 9, "bold"), bg=BG_MID,
               wraplength=210).pack(pady=(5, 0))
@@ -194,22 +188,12 @@ class ImageTab(tk.Frame):
                  pady=2, padx=8).pack()
 
     def _upload(self):
-        path = filedialog.askopenfilename(
-            title="Select Image",
-            filetypes=[("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp *.tiff"),
-                       ("All files", "*.*")])
-        if not path:
-            return
-        title = simpledialog.askstring("Artwork Title",
-                                       "Title for this piece:", parent=self)
-        if title is None:
-            return
-        notes = simpledialog.askstring("Notes (optional)",
-                                       "Any notes about this artwork?",
-                                       parent=self) or ""
-        self.db.add_image(self.node_id, path, title or Path(path).stem, notes)
-        self._render()
-        self.refresh_cb()
+        def on_save(path, title, notes):
+            self.db.add_image(self.node_id, path, title, notes)
+            self._render()
+            self.refresh_cb()
+
+        ImageEditor(self, self.node_id, on_save)
 
     def _delete(self, img):
         if messagebox.askyesno("Delete image",
@@ -265,34 +249,31 @@ class ReferenceTab(tk.Frame):
             self._ref_card(self._scroll.inner, ref)
 
     def _ref_card(self, parent, ref):
-        from PIL import Image, ImageTk
         card = tk.Frame(parent, bg=BG_MID, padx=12, pady=10)
         card.pack(fill="x", padx=15, pady=4)
 
-        # Left: thumbnail
         left = tk.Frame(card, bg=BG_MID)
         left.pack(side="left", padx=(0, 14))
 
         img_path = self.db.images_dir / ref["filename"]
-        if PIL_AVAILABLE and img_path.exists():
+        if img_path.exists():
             try:
+                from PIL import Image, ImageTk
                 pil   = Image.open(img_path)
                 pil.thumbnail(self.THUMB)
                 photo = ImageTk.PhotoImage(pil)
                 self._photos.append(photo)
                 tk.Label(left, image=photo, bg=BG_MID).pack()
             except Exception:
-                label(left, "[Error]", fg=TEXT_DIM, bg=BG_MID).pack(
-                    ipadx=40, ipady=30)
+                label(left, "[Preview error]", fg=TEXT_DIM, bg=BG_MID,
+                      font=FONT_SMALL).pack(ipadx=40, ipady=30)
         else:
-            label(left, "[No preview]", fg=TEXT_DIM, bg=BG_MID).pack(
-                ipadx=40, ipady=30)
+            label(left, "[No preview]", fg=TEXT_DIM, bg=BG_MID,
+                  font=FONT_SMALL).pack(ipadx=40, ipady=30)
 
-        # Right: meta
         right = tk.Frame(card, bg=BG_MID)
         right.pack(side="left", fill="both", expand=True)
 
-        # Tags
         if ref.get("tags"):
             tags_row = tk.Frame(right, bg=BG_MID)
             tags_row.pack(anchor="w", pady=(0, 5))
@@ -300,7 +281,6 @@ class ReferenceTab(tk.Frame):
                 tk.Label(tags_row, text=f"  {tag}  ", bg=ACCENT2, fg=TEXT,
                          font=FONT_SMALL, padx=2).pack(side="left", padx=2)
 
-        # Notes
         if ref.get("notes"):
             label(right, ref["notes"], fg=TEXT, bg=BG_MID, font=FONT_BODY,
                   wraplength=550, justify="left", anchor="w").pack(
@@ -322,7 +302,6 @@ class ReferenceTab(tk.Frame):
         if not paths:
             return
 
-        # Batch dialog
         win = tk.Toplevel(self)
         win.title("Add References")
         win.geometry("500x300")
@@ -352,16 +331,31 @@ class ReferenceTab(tk.Frame):
         btns = tk.Frame(win, bg=BG_DARK)
         btns.pack(fill="x", padx=15, pady=12)
 
+        win._saved = False
+
         def do_add():
             notes = notes_box.get("1.0", "end-1c").strip()
             tags  = tags_var.get().strip()
             for p in paths:
                 self.db.add_reference(self.node_id, p, notes, tags)
+            win._saved = True
             win.destroy()
             self._render()
             self.refresh_cb()
 
-        flat_btn(btns, "Cancel", win.destroy, bg=BG_MID).pack(side="right", padx=6)
+        def on_close():
+            if not win._saved:
+                notes = notes_box.get("1.0", "end-1c").strip()
+                tags  = tags_var.get().strip()
+                for p in paths:
+                    self.db.add_reference(self.node_id, p, notes, tags)
+                self._render()
+                self.refresh_cb()
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+
+        flat_btn(btns, "Close", on_close, bg=BG_MID).pack(side="right", padx=6)
         flat_btn(btns, "  📌  Add to Stash  ", do_add,
                  bg=SUCCESS, fg=BG_DARK,
                  font=("Segoe UI", 10, "bold")).pack(side="right")
