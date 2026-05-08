@@ -6,6 +6,8 @@ import os
 import random
 import subprocess
 import platform
+import shutil
+import time
 
 from .constants import (
     BG_DARK, BG_MID, BG_PANEL, BG_CARD, BG_HOVER,
@@ -164,7 +166,6 @@ class LoreForge:
         if messagebox.askyesno("Delete Project",
                                f"Delete project '{name}' and all its data?\n\nThis cannot be undone.",
                                parent=self.root):
-            import shutil
             proj_dir = DATA_DIR / "projects" / name
             if proj_dir.exists():
                 shutil.rmtree(proj_dir)
@@ -200,7 +201,6 @@ class LoreForge:
         projects_dir.mkdir(exist_ok=True)
         legacy_proj = projects_dir / "Legacy"
         legacy_proj.mkdir(exist_ok=True)
-        import shutil
         shutil.move(str(legacy_nodes), str(legacy_proj / "nodes.json"))
         legacy_img = DATA_DIR / "images"
         if legacy_img.exists():
@@ -470,7 +470,55 @@ class LoreForge:
             self.root.after(50, lambda: self._active_nb and
                             self._active_nb.select(tab_index))
 
-        ActivitySuggestionDialog(self.root, node["name"], activity, title, prompt, jump_to_tab)
+        def autosave(nid, activity_title, draft, img_path):
+            """Called by the dialog when it closes with valid data."""
+            if not nid:
+                return
+            n = self.db.get_node(nid)
+            if not n:
+                return
+
+            saved = False
+            timestamp = int(time.time())
+
+            # Save draft as an essay
+            if draft:
+                essay = {
+                    "title": f"Activity: {activity_title}",
+                    "content": draft
+                }
+                n["essays"].append(essay)
+                saved = True
+
+            # Save image into project folder and reference it
+            if img_path and os.path.exists(img_path):
+                img_dir = self.db.project_path / "images"
+                img_dir.mkdir(exist_ok=True)
+
+                dest = img_dir / os.path.basename(img_path)
+                if dest.exists():
+                    base, ext = os.path.splitext(dest.name)
+                    dest = img_dir / f"{base}_{timestamp}{ext}"
+
+                try:
+                    shutil.copy2(img_path, dest)
+                    n["images"].append({
+                        "path": str(dest.relative_to(self.db.project_path)),
+                        "label": f"Activity: {activity_title}"
+                    })
+                    saved = True
+                except Exception as ex:
+                    print(f"Failed to copy image: {ex}")
+
+            if saved:
+                if hasattr(self.db, 'save'):
+                    self.db.save()
+                self._refresh_tree()
+
+        ActivitySuggestionDialog(
+            self.root, node["name"], activity, title, prompt, jump_to_tab,
+            node_id=node_id, db=self.db, on_autosave=autosave
+        )
 
     def _open_data_folder(self):
         path = str(self.db.project_path) if self.db else str(DATA_DIR)
